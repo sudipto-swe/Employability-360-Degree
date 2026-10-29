@@ -1,0 +1,420 @@
+// ═══════════════════════════════════════════
+// Employability 360° — Prisma Schema
+// AI Job Portal + CV Builder for Bangladesh
+// ═══════════════════════════════════════════
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [vector, pgcrypto]
+}
+
+// ─── ENUMS ────────────────────────────────────────────────
+
+enum Role {
+  JOBSEEKER
+  RECRUITER
+  ADMIN
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SCREENING
+  INTERVIEW
+  OFFER
+  REJECTED
+  WITHDRAWN
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  FAILED
+}
+
+enum CVTemplateId {
+  CLASSIC
+  MODERN
+  MINIMAL
+  PROFESSIONAL
+  CREATIVE
+}
+
+// ─── AUTH (NextAuth v5 compatible) ────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── CORE USER MODEL ──────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String? // null for OAuth-only users
+  phone         String?
+  role          Role      @default(JOBSEEKER)
+  preferredLang String    @default("en") // "en" | "bn"
+  subscriptionTier      String    @default("FREE") // "FREE", "SILVER", "GOLD", "PLATINUM"
+  subscriptionExpiresAt DateTime?
+  aiUsageCount          Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts         Account[]
+  sessions         Session[]
+  jobSeekerProfile JobSeekerProfile?
+  recruiterProfile RecruiterProfile?
+  sentMessages     Message[]      @relation("SentMessages")
+  receivedMessages Message[]      @relation("ReceivedMessages")
+  notifications    Notification[]
+  subscriptions    Subscription[]
+  profileVisitsSent     ProfileVisit[] @relation("ProfileVisitor")
+  profileVisitsReceived ProfileVisit[] @relation("ProfileVisited")
+
+  @@index([email])
+  @@index([role])
+}
+
+// ─── JOB SEEKER PROFILE ───────────────────────────────────
+
+model JobSeekerProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  headline       String? // e.g. "Software Engineer"
+  summary        String?  @db.Text
+  resumeUrl      String? // Supabase Storage URL
+  resumeFileName String?
+  parsedSkills   Json? // AI-extracted: ["React", "Node.js", ...]
+  parsedData     Json? // Full parsed resume JSON
+  experience     Json? // [{company, title, startDate, endDate, ...}]
+  education      Json? // [{institution, degree, year, ...}]
+  location       String?
+  expectedSalary String?
+  isOpenToWork   Boolean  @default(true)
+  profileViews   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // pgvector — 768 dims (Gemini text-embedding-004)
+  embedding Unsupported("vector(768)")?
+
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications Application[]
+  cvs          CV[]
+  interviews   InterviewSession[]
+  savedJobs    SavedJob[]
+
+  @@index([userId])
+  @@index([isOpenToWork])
+  @@index([location])
+}
+
+// ─── RECRUITER PROFILE ────────────────────────────────────
+
+model RecruiterProfile {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  companyName           String
+  companyLogo           String?
+  companyWebsite        String?
+  companyDescription    String?   @db.Text
+  industry              String?
+  companySize           String? // "1-10", "11-50", "51-200", etc.
+  isPremium             Boolean   @default(false)
+  subscriptionExpiresAt DateTime?
+  totalJobsPosted       Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs          Job[]
+
+  @@index([userId])
+  @@index([isPremium])
+}
+
+// ─── JOB CATEGORIES ───────────────────────────────────────
+
+model Category {
+  id   String  @id @default(cuid())
+  name String  @unique // "Software Engineering", "Marketing", etc.
+  slug String  @unique
+  icon String? // Icon name or URL
+
+  jobs Job[]
+
+  @@index([slug])
+}
+
+// ─── JOB LISTINGS ─────────────────────────────────────────
+
+model Job {
+  id               String   @id @default(cuid())
+  recruiterId      String
+  categoryId       String?
+  title            String
+  description      String   @db.Text
+  requirements     String?  @db.Text
+  responsibilities String?  @db.Text
+  location         String // "Dhaka", "Chittagong", "Remote"
+  locationType     String   @default("onsite") // "onsite" | "remote" | "hybrid"
+  salaryMin        Int?
+  salaryMax        Int?
+  salaryCurrency   String   @default("BDT")
+  jobType          String   @default("fulltime") // "fulltime"|"parttime"|"contract"|"internship"
+  experienceLevel  String? // "entry"|"mid"|"senior"|"lead"
+  skills           Json? // ["React", "TypeScript", ...]
+  benefits         Json? // ["Health Insurance", ...]
+  isActive         Boolean  @default(true)
+  isFeatured       Boolean  @default(false)
+  applicationCount Int      @default(0)
+  viewCount        Int      @default(0)
+  deadline         DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // pgvector — 768 dims for cosine similarity matching
+  embedding Unsupported("vector(768)")?
+
+  recruiter    RecruiterProfile @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+  category     Category?        @relation(fields: [categoryId], references: [id])
+  applications Application[]
+  interviews   InterviewSession[]
+  savedBy      SavedJob[]
+
+  @@index([recruiterId])
+  @@index([categoryId])
+  @@index([location])
+  @@index([isActive])
+  @@index([createdAt])
+  @@index([jobType])
+  @@index([experienceLevel])
+}
+
+// ─── APPLICATIONS ─────────────────────────────────────────
+
+model Application {
+  id            String            @id @default(cuid())
+  jobId         String
+  jobSeekerId   String
+  status        ApplicationStatus @default(APPLIED)
+  matchScore    Float? // 0.0 - 1.0 cosine similarity
+  coverLetter   String?           @db.Text
+  resumeUrl     String? // Snapshot of resume at application time
+  notes         String?           @db.Text // Recruiter internal notes
+  statusHistory Json? // [{status, changedAt, changedBy}]
+  appliedAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobSeeker JobSeekerProfile @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@unique([jobId, jobSeekerId])
+  @@index([jobId])
+  @@index([jobSeekerId])
+  @@index([status])
+  @@index([matchScore])
+}
+
+// ─── CV BUILDER ───────────────────────────────────────────
+
+model CV {
+  id          String       @id @default(cuid())
+  jobSeekerId String
+  templateId  CVTemplateId @default(MODERN)
+  title       String       @default("My CV")
+  contentJson Json // Structured CV data
+  pdfUrl      String? // Generated PDF URL
+  docxUrl     String? // Generated DOCX URL
+  isDefault   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  jobSeeker JobSeekerProfile @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+
+  @@index([jobSeekerId])
+}
+
+// ─── INTERVIEW SESSIONS ───────────────────────────────────
+
+model InterviewSession {
+  id          String   @id @default(cuid())
+  jobSeekerId String
+  jobId       String?
+  jobTitle    String // Denormalized for history display
+  companyName String?
+  questions   Json // [{question, category, difficulty}]
+  answers     Json? // [{questionIndex, answer, score, feedback}]
+  avgScore    Float? // Computed average score (0-100)
+  strengths   Json? // AI-identified strengths
+  weaknesses  Json? // AI-identified areas to improve
+  duration    Int? // Session duration in seconds
+  status      String   @default("in_progress") // "in_progress"|"completed"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  jobSeeker JobSeekerProfile @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+  job       Job?             @relation(fields: [jobId], references: [id])
+
+  @@index([jobSeekerId])
+  @@index([jobId])
+  @@index([createdAt])
+}
+
+// ─── SUBSCRIPTIONS (SSLCommerz) ───────────────────────────
+
+model Subscription {
+  id               String             @id @default(cuid())
+  userId           String
+  sslTransactionId String?            @unique
+  sslSessionKey    String?
+  amount           Float // in BDT
+  currency         String             @default("BDT")
+  status           SubscriptionStatus @default(PENDING)
+  planName         String             @default("premium")
+  startsAt         DateTime?
+  expiresAt        DateTime?
+  validationData   Json? // Full SSLCommerz response
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([sslTransactionId])
+}
+
+// ─── MESSAGES (Real-time Chat) ────────────────────────────
+
+model Message {
+  id            String   @id @default(cuid())
+  senderId      String
+  receiverId    String
+  applicationId String?
+  content       String   @db.Text
+  isRead        Boolean  @default(false)
+  attachmentUrl String?
+  attachmentName String?
+  createdAt     DateTime @default(now())
+
+  sender      User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User         @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  application Application? @relation(fields: [applicationId], references: [id])
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([applicationId])
+  @@index([createdAt])
+}
+
+// ─── NOTIFICATIONS ────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String // "application_update"|"new_match"|"message"|"interview_invite"
+  title     String
+  body      String
+  link      String? // URL to navigate to
+  isRead    Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// ─── SAVED JOBS ───────────────────────────────────────────
+
+model SavedJob {
+  id          String   @id @default(cuid())
+  jobSeekerId String
+  jobId       String
+  savedAt     DateTime @default(now())
+
+  jobSeeker JobSeekerProfile @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobSeekerId, jobId])
+  @@index([jobSeekerId])
+}
+
+// ─── AI CACHE ─────────────────────────────────────────────
+
+model AiCache {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  expiresAt DateTime?
+
+  @@index([key])
+}
+
+// ─── PROFILE VISITS ───────────────────────────────────────
+
+model ProfileVisit {
+  id          String   @id @default(cuid())
+  visitorId   String
+  visitedId   String
+  visitedAt   DateTime @default(now())
+
+  visitor     User     @relation("ProfileVisitor", fields: [visitorId], references: [id], onDelete: Cascade)
+  visited     User     @relation("ProfileVisited", fields: [visitedId], references: [id], onDelete: Cascade)
+
+  @@index([visitorId])
+  @@index([visitedId])
+  @@index([visitedAt])
+}

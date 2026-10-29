@@ -1,0 +1,59 @@
+
+> employability-360@0.1.0 lint
+> eslint
+
+
+/home/suuu/JS Projects/Employability 360°/src/app/(main)/dashboard/admin/jobs/page.tsx
+  10:3  warning  'ToggleLeft' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/suuu/JS Projects/Employability 360°/src/app/(main)/dashboard/admin/settings/page.tsx
+  18:3   warning  'CreditCard' is defined but never used       @typescript-eslint/no-unused-vars
+  20:52  warning  'CardDescription' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/suuu/JS Projects/Employability 360°/src/app/(main)/dashboard/admin/users/page.tsx
+  6:3  warning  'Search' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/suuu/JS Projects/Employability 360°/src/app/(main)/dashboard/jobseeker/cv-builder/page.tsx
+  37:10  warning  'Separator' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/suuu/JS Projects/Employability 360°/src/app/(main)/dashboard/jobseeker/messages/page.tsx
+  15:3   warning  'User' is defined but never used         @typescript-eslint/no-unused-vars
+  18:16  warning  'CardContent' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/suuu/JS Projects/Employability 360°/src/app/(main)/dashboard/jobseeker/page.tsx
+  14:29  warning  'CardHeader' is defined but never used  @typescript-eslint/no-unused-vars
+  14:41  warning  'CardTitle' is defined but never used   @typescript-eslint/no-unused-vars
+
+/home/suuu/JS Projects/Employability 360°/src/app/(main)/dashboard/jobseeker/saved/page.tsx
+  12:3  warning  'Trash2' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/suuu/JS Projects/Employability 360°/src/app/(main)/dashboard/recruiter/candidates/page.tsx
+   6:3   warning  'Search' is defined but never used      @typescript-eslint/no-unused-vars
+  13:29  warning  'CardHeader' is defined but never used  @typescript-eslint/no-unused-vars
+  13:41  warning  'CardTitle' is defined but never used   @typescript-eslint/no-unused-vars
+  16:10  warning  'Input' is defined but never used       @typescript-eslint/no-unused-vars
+
+/home/suuu/JS Projects/Employability 360°/src/app/(main)/dashboard/recruiter/jobs/page.tsx
+   7:3   warning  'Eye' is defined but never used         @typescript-eslint/no-unused-vars
+  13:29  warning  'CardHeader' is defined but never used  @typescript-eslint/no-unused-vars
+  13:41  warning  'CardTitle' is defined but never used   @typescript-eslint/no-unused-vars
+
+/home/suuu/JS Projects/Employability 360°/src/app/(main)/dashboard/recruiter/post-job/page.tsx
+  36:10  warning  'Metadata' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/suuu/JS Projects/Employability 360°/src/app/(main)/jobs/page.tsx
+    8:3   warning  'Filter' is defined but never used             @typescript-eslint/no-unused-vars
+  135:51  warning  'currency' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/suuu/JS Projects/Employability 360°/src/components/dashboard/PipelineKanban.tsx
+  211:16  warning  'err' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/suuu/JS Projects/Employability 360°/tests/integration/api/auth/protection.test.ts
+  19:16  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  35:16  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/suuu/JS Projects/Employability 360°/tests/integration/api/payments/sslcommerz.test.ts
+  32:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 24 problems (3 errors, 21 warnings)
+
